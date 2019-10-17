@@ -5,7 +5,8 @@ import torch.nn.functional as F
 pixel_coords = None
 
 
-def set_id_grid(depth):
+def set_id_grid(depth): 
+    # creates the pixel coordinate tensor
     global pixel_coords
     b, h, w = depth.size()
     i_range = torch.arange(0, h).view(1, h, 1).expand(1,h,w).type_as(depth)  # [1, H, W]
@@ -16,6 +17,7 @@ def set_id_grid(depth):
 
 
 def check_sizes(input, input_name, expected):
+    # checks that all input dimensions match the expected dimensions
     condition = [input.ndimension() == len(expected)]
     for i,size in enumerate(expected):
         if size.isdigit():
