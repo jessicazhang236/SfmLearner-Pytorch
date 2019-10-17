@@ -43,6 +43,8 @@ def pixel2cam(depth, intrinsics_inv):
     cam_coords = (intrinsics_inv @ current_pixel_coords).reshape(b, 3, h, w)
     # @ performs batch matrix-matrix multiplication
     return cam_coords * depth.unsqueeze(1)
+    # recover depth information into camera coordinates 
+    # (reversing division by depth when projecting from camera frame to pixel frame)
 
 
 def cam2pixel(cam_coords, proj_c2p_rot, proj_c2p_tr, padding_mode):
