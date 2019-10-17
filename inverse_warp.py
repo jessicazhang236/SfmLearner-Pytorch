@@ -36,9 +36,12 @@ def pixel2cam(depth, intrinsics_inv):
     """
     b, h, w = depth.size()
     if (pixel_coords is None) or pixel_coords.size(2) < h:
+        # initialize pixel coordinates if uninitialized or too small; no updates otherwise
         set_id_grid(depth)
     current_pixel_coords = pixel_coords[:,:,:h,:w].expand(b,3,h,w).reshape(b, 3, -1)  # [B, 3, H*W]
+    # force into 2D matrices; 3 to match dimensions of intrinsics matrix
     cam_coords = (intrinsics_inv @ current_pixel_coords).reshape(b, 3, h, w)
+    # @ performs batch matrix-matrix multiplication
     return cam_coords * depth.unsqueeze(1)
 
 
