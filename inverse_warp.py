@@ -56,6 +56,7 @@ def cam2pixel(cam_coords, proj_c2p_rot, proj_c2p_tr, padding_mode):
     Returns:
         array of [-1,1] coordinates -- [B, 2, H, W]
     """
+    # it actually takes in cam_coords as [B, 3, H, W], proj_c2p_rot as [B, 3, 3]
     b, _, h, w = cam_coords.size()
     cam_coords_flat = cam_coords.reshape(b, 3, -1)  # [B, 3, H*W]
     if proj_c2p_rot is not None:
@@ -65,9 +66,12 @@ def cam2pixel(cam_coords, proj_c2p_rot, proj_c2p_tr, padding_mode):
 
     if proj_c2p_tr is not None:
         pcoords = pcoords + proj_c2p_tr  # [B, 3, H*W]
+    # apply the available transformations
     X = pcoords[:, 0]
     Y = pcoords[:, 1]
     Z = pcoords[:, 2].clamp(min=1e-3)
+    
+    # the clamping guarantees that the division by Z does not cause issues
 
     X_norm = 2*(X / Z)/(w-1) - 1  # Normalized, -1 if on extreme left, 1 if on extreme right (x = w-1) [B, H*W]
     Y_norm = 2*(Y / Z)/(h-1) - 1  # Idem [B, H*W]
@@ -115,17 +119,21 @@ def euler2mat(angle):
     rotMat = xmat @ ymat @ zmat
     return rotMat
 
+    # 1-2-3 angles input
+
 
 def quat2mat(quat):
     """Convert quaternion coefficients to rotation matrix.
 
     Args:
-        quat: first three coeff of quaternion of rotation. fourht is then computed to have a norm of 1 -- size = [B, 3]
+        quat: first three coeff of quaternion of rotation. fourth is then computed to have a norm of 1 -- size = [B, 3]
     Returns:
         Rotation matrix corresponding to the quaternion -- size = [B, 3, 3]
     """
     norm_quat = torch.cat([quat[:,:1].detach()*0 + 1, quat], dim=1)
+    # (n, e1, e2, e3)
     norm_quat = norm_quat/norm_quat.norm(p=2, dim=1, keepdim=True)
+    # normalize
     w, x, y, z = norm_quat[:,0], norm_quat[:,1], norm_quat[:,2], norm_quat[:,3]
 
     B = quat.size(0)
@@ -183,13 +191,18 @@ def inverse_warp(img, depth, pose, intrinsics, rotation_mode='euler', padding_mo
 
     pose_mat = pose_vec2mat(pose, rotation_mode)  # [B,3,4]
 
-    # Get projection matrix for tgt camera frame to source pixel frame
+    # Get projection matrix for target camera frame to source pixel frame
     proj_cam_to_src_pixel = intrinsics @ pose_mat  # [B, 3, 4]
 
     rot, tr = proj_cam_to_src_pixel[:,:,:3], proj_cam_to_src_pixel[:,:,-1:]
     src_pixel_coords = cam2pixel(cam_coords, rot, tr, padding_mode)  # [B,H,W,2]
+    # padding mode feels useless here, not used in cam2pixelg
     projected_img = F.grid_sample(img, src_pixel_coords, padding_mode=padding_mode)
+    # does the interpolation
+    # padding_mode helps deal with out of bound values
 
     valid_points = src_pixel_coords.abs().max(dim=-1)[0] <= 1
+    
+    # we forced them into [-1, 1], so anything outside the range is treated as invalid
 
     return projected_img, valid_points
